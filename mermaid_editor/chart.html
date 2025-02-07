@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mermaid Chart</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.6.0/dist/mermaid.esm.min.mjs";
+
+    // 儲存最後一次渲染成功的 SVG（包含套用自訂 CSS）
+    let currentSvg = "";
+
+    // 監聽父頁面傳來的訊息
+    window.addEventListener("message", async (event) => {
+      const data = event.data;
+      if (!data) return;
+
+      // 1. 渲染
+      if (data.action === "render") {
+        const { code, css } = data;
+        const container = document.getElementById("mermaidContainer");
+        container.innerHTML = ""; // 清空舊圖
+
+        try {
+          // 每次 render 前先指定新的 themeCSS
+          // 注意：若要使用自訂 theme，亦可加上 theme:'base' or 'dark'...
+          mermaid.initialize({
+            startOnLoad: false,
+            themeCSS: css || "",
+          });
+
+          // 產生 SVG
+          const { svg } = await mermaid.render("generatedMermaid", code);
+          container.innerHTML = svg;
+          currentSvg = svg;
+        } catch (error) {
+          container.innerHTML = `<p style="color:red;">Mermaid 解析錯誤：${error.message}</p>`;
+          currentSvg = "";
+        }
+      }
+      // 2. 下載 SVG
+      else if (data.action === "downloadSVG") {
+        if (currentSvg) {
+          downloadSvgFile(currentSvg);
+        }
+      }
+      // 3. 下載 PNG（解析度放大）
+      else if (data.action === "downloadPNG") {
+        if (currentSvg) {
+          const scale = 2; // 可以改 3、4 或更大
+          downloadPngFile(currentSvg, scale);
+        }
+      }
+        // === 新增的兩種動作 ===
+    else if (data.action === "exportSVG") {
+        // 開新分頁顯示 SVG
+        if (currentSvg) exportSvgWindow(currentSvg);
+    }
+    else if (data.action === "exportPNG") {
+        // 開新分頁顯示 PNG
+        if (currentSvg) exportPngWindow(currentSvg, 2); // 2 = 放大倍數，可自行調整
+    }
+    });
+
+    // ---- 下載 SVG ----
+    function downloadSvgFile(svgContent) {
+      const blob = new Blob([svgContent], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "mermaid-diagram.svg";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    // ---- 下載 PNG：使用 viewBox + scale 放大 ----
+    function downloadPngFile(svgContent, scale) {
+      // 把字串轉成 DOM
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+      const svgEl = svgDoc.querySelector("svg");
+      if (!svgEl) return;
+
+      // 嘗試從 viewBox 抓取原始尺寸
+      let width = 300;
+      let height = 200;
+      const vb = svgEl.getAttribute("viewBox");
+      if (vb) {
+        const vbValues = vb.split(" ").map(parseFloat);
+        if (vbValues.length === 4 && !vbValues.some(isNaN)) {
+          width = vbValues[2];
+          height = vbValues[3];
+        }
+      } else {
+        // 沒有 viewBox 就看 width/height 屬性
+        const wAttr = svgEl.getAttribute("width");
+        const hAttr = svgEl.getAttribute("height");
+        if (wAttr && hAttr) {
+          width = parseFloat(wAttr);
+          height = parseFloat(hAttr);
+        }
+      }
+
+      // 重新序列化成新的字串，避免 100% 等 CSS 影響
+      const updatedSvg = new XMLSerializer().serializeToString(svgDoc);
+
+      // 轉成 Base64
+      const svgBase64 = btoa(unescape(encodeURIComponent(updatedSvg)));
+      const image64 = "data:image/svg+xml;base64," + svgBase64;
+
+      // 建立圖像
+      const img = new Image();
+      img.onload = () => {
+        // 在 Canvas 上繪製，並做放大
+        const canvas = document.createElement("canvas");
+        const canvasWidth = width * scale;
+        const canvasHeight = height * scale;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext("2d");
+        // 直接繪製（縮放）
+        ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+
+        // 輸出成 PNG
+        const pngDataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = pngDataUrl;
+        link.download = "mermaid-diagram.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+      img.src = image64;
+    }
+
+
+//     function exportSvgWindow(svgContent) {
+//   // 這裡若直接 btoa(svgContent) 會因為中文(非 ASCII)而出錯
+//   const base64 = btoa(unescape(encodeURIComponent(svgContent)));
+
+//   const newWin = window.open("", "_blank");
+//   newWin.document.write("<!DOCTYPE html><html><head><title>Exported SVG</title></head><body>");
+//   newWin.document.write(`<img src="data:image/svg+xml;base64,${base64}" />`);
+//   newWin.document.write("</body></html>");
+//   newWin.document.close();
+// }
+function exportSvgWindow(svgContent) {
+  // 開新分頁
+  const newWin = window.open("", "_blank");
+
+
+  // 在新頁面插入原始 SVG (inline)，而非 <img>
+  newWin.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Exported SVG</title>
+    </head>
+    <body>
+      ${svgContent}
+    </body>
+    </html>
+  `);
+  newWin.document.close();
+}
+
+
+
+function exportPngWindow(svgContent, scale = 2) {
+  // 這裡示範先將 svgContent 解析出 width, height
+  const { updatedSvg, width, height } = prepareSvgForExport(svgContent);
+  const svgBase64 = btoa(unescape(encodeURIComponent(updatedSvg)));
+  const image64 = "data:image/svg+xml;base64," + svgBase64;
+
+  const img = new Image();
+  img.onload = () => {
+    // 繪製到 Canvas
+    const canvas = document.createElement("canvas");
+    const canvasWidth = width * scale;
+    const canvasHeight = height * scale;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+
+    // 取得 PNG base64
+    const pngDataUrl = canvas.toDataURL("image/png");
+
+    // 在新分頁顯示
+    const newWin = window.open("", "_blank");
+    newWin.document.write("<!DOCTYPE html><html><head><title>Exported PNG</title></head><body>");
+    newWin.document.write(`<img src="${pngDataUrl}" />`);
+    newWin.document.write("</body></html>");
+    newWin.document.close();
+  };
+  img.src = image64;
+}
+
+// 範例：解析 viewBox + 清理 <svg>
+function prepareSvgForExport(svgContent) {
+  const parser = new DOMParser();
+  const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+  const svgEl = svgDoc.querySelector("svg");
+
+  let width = 300;
+  let height = 200;
+  const vb = svgEl.getAttribute("viewBox");
+  if (vb) {
+    const vbValues = vb.split(" ").map(parseFloat);
+    if (vbValues.length === 4 && !vbValues.some(isNaN)) {
+      width = vbValues[2];
+      height = vbValues[3];
+    }
+  } else {
+    const wAttr = svgEl.getAttribute("width");
+    const hAttr = svgEl.getAttribute("height");
+    if (wAttr && hAttr) {
+      width = parseFloat(wAttr);
+      height = parseFloat(hAttr);
+    }
+  }
+
+  const updatedSvg = new XMLSerializer().serializeToString(svgDoc);
+  return { updatedSvg, width, height };
+}
+
+
+  </script>
+
+  <style>
+    body, html {
+      margin: 0; 
+      padding: 0; 
+      width: 100%; 
+      height: 100%; 
+      overflow: auto;
+    }
+    #mermaidContainer {
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    /* 讓畫面上看起來自動填充，但不影響 svg 的原生尺寸 */
+    #mermaidContainer svg {
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="mermaidContainer"></div>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mermaid + CSS 即時編輯器（Tabs + KROKI）</title>
+
+  <!-- 用於壓縮 Mermaid 程式碼（Kroki 需要 deflate + base64） -->
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.0.4/dist/pako.min.js"></script>
+
+  <script>
+    // ====== 即時渲染 ======
+    function renderMermaid() {
+      const code = document.getElementById("mermaidInput").value;
+      const css = document.getElementById("customCssInput").value;
+      const chartFrame = document.getElementById("chartFrame");
+      if (chartFrame && chartFrame.contentWindow) {
+        chartFrame.contentWindow.postMessage({
+          action: "render",
+          code,
+          css
+        }, "*");
+      }
+    }
+
+    // ====== 下載按鈕 ======
+    function downloadSVG() {
+      const chartFrame = document.getElementById("chartFrame");
+      if (chartFrame && chartFrame.contentWindow) {
+        chartFrame.contentWindow.postMessage({ action: "downloadSVG" }, "*");
+      }
+    }
+    function downloadPNG() {
+      const chartFrame = document.getElementById("chartFrame");
+      if (chartFrame && chartFrame.contentWindow) {
+        chartFrame.contentWindow.postMessage({ action: "downloadPNG" }, "*");
+      }
+    }
+
+    // 專門用來向 chartFrame postMessage
+    function postToChart(action) {
+    const chartFrame = document.getElementById("chartFrame");
+    if (chartFrame && chartFrame.contentWindow) {
+        chartFrame.contentWindow.postMessage({ action }, "*");
+        }
+    }   
+
+    // 按鈕事件：匯出 SVG
+    function exportSVG() {
+    postToChart("exportSVG");
+    }
+
+    // 按鈕事件：匯出 PNG
+    function exportPNG() {
+    postToChart("exportPNG");
+    }
+
+
+    // ====== 開啟 Kroki ======
+    function openKroki() {
+      const code = document.getElementById("mermaidInput").value.trim();
+      const data = new TextEncoder().encode(code); 
+      const compressed = pako.deflate(data, { level: 9 });
+      let binaryStr = "";
+      for (let i = 0; i < compressed.length; i++) {
+        binaryStr += String.fromCharCode(compressed[i]);
+      }
+      let base64 = btoa(binaryStr);
+      base64 = base64
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, ""); // 移除結尾的 '='
+
+      const url = `https://kroki.io/mermaid/svg/${base64}`;
+      window.open(url, "_blank");
+    }
+
+    // ====== Tabs 切換 ======
+    function showMermaidTab() {
+      document.getElementById("mermaidTab").classList.add("active");
+      document.getElementById("cssTab").classList.remove("active");
+
+      document.getElementById("mermaidInput").classList.remove("hidden");
+      document.getElementById("customCssInput").classList.add("hidden");
+    }
+    function showCssTab() {
+      document.getElementById("cssTab").classList.add("active");
+      document.getElementById("mermaidTab").classList.remove("active");
+
+      document.getElementById("customCssInput").classList.remove("hidden");
+      document.getElementById("mermaidInput").classList.add("hidden");
+    }
+  
+    // ====== Lifecycle ======
+    window.addEventListener("DOMContentLoaded", () => {
+      const chartFrame = document.getElementById("chartFrame");
+      chartFrame.onload = () => {
+        renderMermaid();
+      };
+      // DOMContentLoaded 時也嘗試
+      renderMermaid();
+
+      // 當 Mermaid 或 CSS 區文字變更時，即時更新圖表
+      document.getElementById("mermaidInput")
+              .addEventListener("input", renderMermaid);
+      document.getElementById("customCssInput")
+              .addEventListener("input", renderMermaid);
+
+      // 下載按鈕
+      document.getElementById("btnDownloadSVG").addEventListener("click", downloadSVG);
+      document.getElementById("btnDownloadPNG").addEventListener("click", downloadPNG);
+        // 綁定匯出按鈕事件 (假設你在 DOMContentLoaded 中做)
+    document.getElementById("btnExportSVG").addEventListener("click", exportSVG);
+    document.getElementById("btnExportPNG").addEventListener("click", exportPNG);
+
+      // Kroki 按鈕
+      document.getElementById("btnKroki").addEventListener("click", openKroki);
+
+      // Tabs
+      document.getElementById("mermaidTab").addEventListener("click", showMermaidTab);
+      document.getElementById("cssTab").addEventListener("click", showCssTab);
+
+      // 預設顯示 Mermaid 區域
+      showMermaidTab();
+    });
+  </script>
+
+  <style>
+    /* ========== 版面配置 ========== */
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    /* 左側編輯器區 */
+    #editor {
+      width: 50%;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      border-right: 3px solid #ccc;
+    }
+    /* 分隔條(可拖曳) */
+    #resizer {
+      width: 10px;
+      cursor: ew-resize;
+      background-color: #ddd;
+    }
+    /* 右側 iframe 區 */
+    #output {
+      flex: 1;
+      display: block;
+      background-color: #f9f9f9;
+      overflow: hidden;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* ========== Tabs 樣式 ========== */
+    .tabs {
+      display: flex;
+      background-color: #2d2d2d;  /* 類似 VSCode 顏色 */
+      padding: 0 10px;
+    }
+    .tabs button {
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 14px;
+      margin: 0;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tabs button:hover {
+      color: #fff;
+      background-color: #3c3c3c;
+    }
+    .tabs button.active {
+      color: #fff;
+      border-bottom: 2px solid #007acc; /* VSCode 藍色 */
+      font-weight: bold;
+    }
+
+    /* ========== Textarea 區域 ========== */
+    .editor-container {
+      flex: 1;  /* 讓中間區塊可撐開 */
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    textarea {
+      flex: 1;
+      border: none;
+      font-size: 14px;
+      font-family: monospace;
+      box-sizing: border-box;
+      padding: 10px;
+      resize: none;
+      width: 100%;
+    }
+    /* hidden 用於切換顯示/隱藏 */
+    .hidden {
+      display: none !important;
+    }
+
+    /* ========== 底部下載按鈕(含Kroki) ========== */
+    .download-buttons {
+      display: flex;
+      gap: 10px;
+      /* 讓三個按鈕寬度等分填滿 */
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+    }
+    .download-buttons button {
+      flex: 1; /* 三個按鈕平均分配空間 */
+      font-size: 14px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      padding: 6px 12px;
+    }
+    .download-buttons button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 左側：編輯器(包含 Tabs、編輯器容器、底部三個按鈕) -->
+  <div id="editor">
+    <!-- Tabs (Mermaid / CSS) -->
+    <div class="tabs">
+      <button id="mermaidTab" class="tab">Mermaid</button>
+      <button id="cssTab" class="tab">CSS</button>
+    </div>
+
+    <!-- 中間 textarea 區 (可顯示/隱藏) -->
+    <div class="editor-container">
+      <textarea id="mermaidInput">
+gantt
+  title AI 多模態胸痛辨識專案
+  dateFormat YYYY-MM-DD
+  section 研究階段
+  文獻回顧與資料整理   :done, 2025-02-01, 60d
+  資料前處理與模型建構 :active, 2025-04-01, 90d
+  section 開發階段
+  前端介面設計       :b1, 2025-06-01, 60d
+  後端 API 串接     :b2, 2025-07-01, 90d
+      </textarea>
+
+      <textarea id="customCssInput" class="hidden">
+/* 在此輸入自訂CSS，例如：
+.node rect {
+  fill: #ffff99 !important;
+  stroke: #ff0000 !important;
+  stroke-width: 3px !important;
+}
+*/
+      </textarea>
+    </div>
+
+    <!-- 底部: 下載按鈕 + KROKI 按鈕 -->
+    <div class="download-buttons">
+      <button id="btnDownloadSVG">下載 SVG</button>
+      <button id="btnDownloadPNG">下載 PNG</button>
+      <!-- 匯出 SVG (開新分頁) -->
+    <button id="btnExportSVG">匯出 SVG</button>
+
+    <!-- 匯出 PNG (開新分頁) -->
+    <button id="btnExportPNG">匯出 PNG</button>
+      <button id="btnKroki" onclick="openKroki()">KROKI</button>
+    </div>
+  </div>
+
+  <!-- 分隔條(拖曳) -->
+  <div id="resizer"></div>
+
+  <!-- 右側：iframe 顯示圖表 -->
+  <div id="output">
+    <iframe id="chartFrame" src="chart.html"></iframe>
+  </div>
+
+  <script>
+    // ====== 拖曳分隔條 ======
+    const resizer = document.getElementById("resizer");
+    const editor = document.getElementById("editor");
+    let isResizing = false;
+
+    resizer.addEventListener("mousedown", () => {
+      isResizing = true;
+      document.body.style.cursor = "ew-resize";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+      const editorWidth = e.clientX;
+      const minWidth = 300;
+      const maxWidth = window.innerWidth - 300;
+      if (editorWidth > minWidth && editorWidth < maxWidth) {
+        editor.style.width = editorWidth + "px";
+      }
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = "default";
+      }
+    });
+  </script>
+</body>
+</html>

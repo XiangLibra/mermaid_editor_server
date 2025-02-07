@@ -54,3 +54,17 @@ deno run -A server.js
 ```
 
 
+
+## 範例甘特圖mermaid語法
+
+```mermaid
+gantt
+  title AI辨識專案
+  dateFormat YYYY-MM-DD
+  section 研究階段
+  文獻回顧與資料整理   :done, 2025-02-01, 60d
+  資料前處理與模型建構 :active, 2025-04-01, 90d
+  section 開發階段
+  前端介面設計       :b1, 2025-06-01, 60d
+  後端 API 串接     :b2, 2025-07-01, 90d
+```

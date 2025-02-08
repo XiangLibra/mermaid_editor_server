@@ -1,5 +1,11 @@
 # mermaid_editor_server
 
+# 靜態網頁網址
+https://xianglibra.github.io/mermaid_editor_server/mermaid_editor/
+
+
+
+# 本地安裝方法
 
 ## 進去mermaid_editor
 ```bash

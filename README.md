@@ -68,3 +68,28 @@ gantt
   前端介面設計       :b1, 2025-06-01, 60d
   後端 API 串接     :b2, 2025-07-01, 90d
 ```
+
+
+## 範例心智圖 mermaid語法
+``` mermaid
+mindmap
+  root((前端開發))
+    HTML
+    CSS
+      排版與布局
+      響應式設計
+      預處理器 (Sass\, Less)
+    JavaScript
+      DOM 操作
+      ES6+ 新特性
+      非同步處理 (AJAX\, Promises)
+      框架 / 函式庫
+        React
+        Vue
+        Angular
+    版本控制 (Git)
+    套件管理工具 (npm\, yarn)
+    建構工具 (Webpack\, Gulp\, Grunt)
+    測試工具 (Jest\, Mocha)
+
+```

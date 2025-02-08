@@ -70,28 +70,57 @@
 
 
     // ====== 開啟 Kroki ======
-    function openKroki() {
-      const code = document.getElementById("mermaidInput").value.trim();
-      const data = new TextEncoder().encode(code); 
-      const compressed = pako.deflate(data, { level: 9 });
-      let binaryStr = "";
-      for (let i = 0; i < compressed.length; i++) {
-        binaryStr += String.fromCharCode(compressed[i]);
-      }
-      let base64 = btoa(binaryStr);
-      base64 = base64
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, ""); // 移除結尾的 '='
+    // function openKroki() {
+    //   const code = document.getElementById("mermaidInput").value.trim();
+    //   const data = new TextEncoder().encode(code); 
+    //   const compressed = pako.deflate(data, { level: 9 });
+    //   let binaryStr = "";
+    //   for (let i = 0; i < compressed.length; i++) {
+    //     binaryStr += String.fromCharCode(compressed[i]);
+    //   }
+    //   let base64 = btoa(binaryStr);
+    //   base64 = base64
+    //     .replace(/\+/g, "-")
+    //     .replace(/\//g, "_")
+    //     .replace(/=+$/, ""); // 移除結尾的 '='
 
-      const url = `https://kroki.io/mermaid/svg/${base64}`;
-      window.open(url, "_blank");
-    }
+    //   const url = `https://kroki.io/mermaid/svg/${base64}`;
+    //   window.open(url, "_blank");
+    // }
+    function openKroki() {
+  const code = document.getElementById("mermaidInput").value.trim();
+  const css = document.getElementById("customCssInput").value.trim();
+
+  // 🔹 直接把 CSS 內嵌到 Mermaid Code
+  const mermaidWithCss = `%%{init: { "themeCSS": "${css.replace(/\n/g, ' ')}" }}%%\n${code}`;
+
+  const data = new TextEncoder().encode(mermaidWithCss);
+  const compressed = pako.deflate(data, { level: 9 });
+
+  let binaryStr = "";
+  for (let i = 0; i < compressed.length; i++) {
+    binaryStr += String.fromCharCode(compressed[i]);
+  }
+  let base64 = btoa(binaryStr);
+  base64 = base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  const url = `https://kroki.io/mermaid/svg/${base64}`;
+  window.open(url, "_blank");
+}
+
 
     function copyKrokiURL() {
       const code = document.getElementById("mermaidInput").value.trim();
-      const data = new TextEncoder().encode(code);
-      const compressed = pako.deflate(data, { level: 9 });
+      const css = document.getElementById("customCssInput").value.trim();
+
+    // 🔹 直接把 CSS 內嵌到 Mermaid Code
+    const mermaidWithCss = `%%{init: { "themeCSS": "${css.replace(/\n/g, ' ')}" }}%%\n${code}`;   
+
+    const data = new TextEncoder().encode(mermaidWithCss);
+    const compressed = pako.deflate(data, { level: 9 });
+
+      // const data = new TextEncoder().encode(code);
+      // const compressed = pako.deflate(data, { level: 9 });
 
       let binaryStr = "";
       for (let i = 0; i < compressed.length; i++) {
@@ -381,7 +410,7 @@
     <div class="editor-container">
       <textarea id="mermaidInput">
 gantt
-  title AI 多模態辨識專案
+  title AI辨識專案
   dateFormat YYYY-MM-DD
   section 研究階段
   文獻回顧與資料整理   :done, 2025-02-01, 60d

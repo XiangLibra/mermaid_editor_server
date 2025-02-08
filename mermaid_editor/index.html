@@ -23,6 +23,19 @@
       }
     }
 
+    function copySVG() {
+    // 跟子頁面要 "SVG 字串"
+    const chartFrame = document.getElementById("chartFrame");
+    chartFrame.contentWindow.postMessage({ action: "requestSVG" }, "*");
+    }
+
+    function copyPNG() {
+      // 跟子頁面要 "PNG base64"
+      const chartFrame = document.getElementById("chartFrame");
+      chartFrame.contentWindow.postMessage({ action: "requestPNG" }, "*");
+    }
+
+
     // ====== 下載按鈕 ======
     function downloadSVG() {
       const chartFrame = document.getElementById("chartFrame");
@@ -75,6 +88,35 @@
       window.open(url, "_blank");
     }
 
+    function copyKrokiURL() {
+      const code = document.getElementById("mermaidInput").value.trim();
+      const data = new TextEncoder().encode(code);
+      const compressed = pako.deflate(data, { level: 9 });
+
+      let binaryStr = "";
+      for (let i = 0; i < compressed.length; i++) {
+        binaryStr += String.fromCharCode(compressed[i]);
+      }
+      let base64 = btoa(binaryStr);
+      base64 = base64
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+
+      const url = `https://kroki.io/mermaid/svg/${base64}`;
+
+      // 複製到剪貼簿
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          showToast("已複製 KROKI 網址到剪貼簿！");
+        })
+        .catch((err) => {
+          console.error("複製 KROKI 網址失敗:", err);
+          alert("複製失敗，請確認瀏覽器或 HTTPS 環境。");
+        });
+    }
+
+
     // ====== Tabs 切換 ======
     function showMermaidTab() {
       document.getElementById("mermaidTab").classList.add("active");
@@ -106,6 +148,9 @@
       document.getElementById("customCssInput")
               .addEventListener("input", renderMermaid);
 
+    //複製按鈕
+      document.getElementById("btnCopySVG").addEventListener("click", copySVG);
+      document.getElementById("btnCopyPNG").addEventListener("click", copyPNG);       
       // 下載按鈕
       document.getElementById("btnDownloadSVG").addEventListener("click", downloadSVG);
       document.getElementById("btnDownloadPNG").addEventListener("click", downloadPNG);
@@ -115,6 +160,8 @@
 
       // Kroki 按鈕
       document.getElementById("btnKroki").addEventListener("click", openKroki);
+        // ★  KROKI網址 按鈕 → copyKrokiURL
+      document.getElementById("btnKrokiURL").addEventListener("click", copyKrokiURL);
 
       // Tabs
       document.getElementById("mermaidTab").addEventListener("click", showMermaidTab);
@@ -123,6 +170,75 @@
       // 預設顯示 Mermaid 區域
       showMermaidTab();
     });
+
+      // 父頁面接收子頁面回傳
+    window.addEventListener("message", async (e) => {
+      const data = e.data;
+      if (!data) return;
+
+      // 收到 "responseSVG" { type:"responseSVG", svg:... }
+      if (data.type === "responseSVG") {
+        try {
+          await navigator.clipboard.writeText(data.svg);
+          showToast("文字到剪貼簿");
+        } catch (err) {
+          console.error("複製 SVG 失敗:", err);
+          alert("複製 SVG 失敗，瀏覽器可能不支援或未在安全環境");
+        }
+      }
+      // 收到 "responsePNG" { type:"responsePNG", png:... } => dataURL
+      else if (data.type === "responsePNG") {
+        try {
+          const res = await fetch(data.png); // data.png 為 "data:image/png;base64,xxx"
+          const blob = await res.blob(); // => image/png
+          const item = new ClipboardItem({ "image/png": blob });
+          await navigator.clipboard.write([item]);
+          showToast("已複製 PNG 圖片到剪貼簿");
+        } catch (err) {
+          console.error("複製 PNG 失敗:", err);
+          alert("複製 PNG 失敗，瀏覽器可能不支援 Clipboard API 或未在 HTTPS");
+        }
+      }
+    });
+
+
+
+        function showToast(message) {
+      // 建立一個 <div> 作為提示容器
+      const toast = document.createElement("div");
+      toast.textContent = message;
+      
+      // 設定一些簡易樣式
+      toast.style.position = "fixed";
+      toast.style.bottom = "20px";
+      toast.style.right = "20px";
+      toast.style.zIndex = 9999;
+      toast.style.backgroundColor = "#008080";
+      toast.style.color = "#FFFFFF";
+      toast.style.padding = "10px 20px";
+      toast.style.borderRadius = "5px";
+      toast.style.fontSize = "14px";
+      toast.style.opacity = "0"; // 起始不透明度
+      
+      document.body.appendChild(toast);
+
+      // 逐漸淡入
+      setTimeout(() => {
+        toast.style.transition = "opacity 0.3s";
+        toast.style.opacity = "1";
+      }, 0);
+
+      // 幾秒後自動移除
+      setTimeout(() => {
+        // 先淡出
+        toast.style.opacity = "0";
+        // 等淡出動畫結束後，再移除元素
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }, 2000); // 2 秒後自動關閉
+    }
+
   </script>
 
   <style>
@@ -137,7 +253,7 @@
     }
     /* 左側編輯器區 */
     #editor {
-      width: 50%;
+      width: 30%;
       min-width: 300px;
       display: flex;
       flex-direction: column;
@@ -211,28 +327,44 @@
     }
 
     /* ========== 底部下載按鈕(含Kroki) ========== */
-    .download-buttons {
-      display: flex;
-      gap: 10px;
-      /* 讓三個按鈕寬度等分填滿 */
-      width: 100%;
-      box-sizing: border-box;
-      padding: 10px;
-    }
-    .download-buttons button {
-      flex: 1; /* 三個按鈕平均分配空間 */
-      font-size: 14px;
-      border: none;
-      background-color: #007bff;
-      color: white;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      padding: 6px 12px;
-    }
-    .download-buttons button:hover {
-      background-color: #0056b3;
-    }
+    .buttons-grid {
+  display: grid;
+  /* 四欄 × 兩列，共 8 格 */
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, auto);
+  
+  gap: 10px;
+  padding: 10px;
+}
+
+/* 第一列 4 顆 (row=1) */
+.item1 { grid-column: 1; grid-row: 1; }
+.item2 { grid-column: 2; grid-row: 1; }
+.item3 { grid-column: 3; grid-row: 1; }
+.itemKroki { grid-column: 4; grid-row: 1; }
+
+/* 第二列 4 顆 (row=2) */
+.item4        { grid-column: 1; grid-row: 2; }
+.item5        { grid-column: 2; grid-row: 2; }
+.item6        { grid-column: 3; grid-row: 2; }
+/* ★ 新增 itemKrokiURL */
+.itemKrokiURL { grid-column: 4; grid-row: 2; }
+
+.buttons-grid button {
+  font-size: 14px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  border-radius: 0px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  padding: 3px 3px;
+}
+.buttons-grid button:hover {
+  background-color: #0056b3;
+}
+
+
   </style>
 </head>
 
@@ -249,7 +381,7 @@
     <div class="editor-container">
       <textarea id="mermaidInput">
 gantt
-  title AI 多模態胸痛辨識專案
+  title AI 多模態辨識專案
   dateFormat YYYY-MM-DD
   section 研究階段
   文獻回顧與資料整理   :done, 2025-02-01, 60d
@@ -270,18 +402,32 @@ gantt
       </textarea>
     </div>
 
-    <!-- 底部: 下載按鈕 + KROKI 按鈕 -->
-    <div class="download-buttons">
-      <button id="btnDownloadSVG">下載 SVG</button>
-      <button id="btnDownloadPNG">下載 PNG</button>
-      <!-- 匯出 SVG (開新分頁) -->
-    <button id="btnExportSVG">匯出 SVG</button>
+   
 
-    <!-- 匯出 PNG (開新分頁) -->
-    <button id="btnExportPNG">匯出 PNG</button>
-      <button id="btnKroki" onclick="openKroki()">KROKI</button>
+
+    <!-- 範例 HTML 結構：兩列 × 四欄, 共 8 顆按鈕 -->
+    <div class="buttons-grid">
+      <!-- 第一行 (row=1) -->
+      <button id="btnCopySVG"     class="item1">📋 複製 SVG</button>
+      <button id="btnDownloadSVG" class="item2">⬇️ 下載 SVG</button>
+      <button id="btnExportSVG"   class="item3">📤 匯出 SVG</button>
+      <button id="btnKroki"       class="itemKroki">⚡ KROKI</button>
+      
+      <!-- 第二行 (row=2) -->
+      <button id="btnCopyPNG"     class="item4">📋 複製 PNG</button>
+      <button id="btnDownloadPNG" class="item5">⬇️ 下載 PNG</button>
+      <button id="btnExportPNG"   class="item6">📤 匯出 PNG</button>
+      <!-- ★ 新增 KROKI網址 按鈕 (row=2,col=4) -->
+      <button id="btnKrokiURL"    class="itemKrokiURL">🔗 KROKI網址</button>
     </div>
+
+    
+    <!-- 你原本的其他區塊結構保持不變，僅修改/替換底部按鈕區如下 -->
+
   </div>
+
+  
+
 
   <!-- 分隔條(拖曳) -->
   <div id="resizer"></div>

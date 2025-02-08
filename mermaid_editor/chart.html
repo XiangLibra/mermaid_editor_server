@@ -37,6 +37,28 @@
           currentSvg = "";
         }
       }
+            // ========== 新增：複製 SVG / PNG ==========
+          else if (data.action === "requestSVG") {
+            // 父頁面想要拿到 currentSvg（字串）
+            if (currentSvg) {
+              // 回傳給父頁面 { type:'responseSVG', svg: currentSvg }
+              event.source.postMessage({
+                type: "responseSVG",
+                svg: currentSvg
+              }, "*");
+            }
+          }
+          else if (data.action === "requestPNG") {
+            // 父頁面想要拿到 PNG base64
+            if (currentSvg) {
+              const pngBase64 = await generatePngBase64(currentSvg, 2); 
+              // 2 => scale，可自訂
+              event.source.postMessage({
+                type: "responsePNG",
+                png: pngBase64
+              }, "*");
+            }
+          }
       // 2. 下載 SVG
       else if (data.action === "downloadSVG") {
         if (currentSvg) {
@@ -61,6 +83,31 @@
     }
     });
 
+
+
+    // === 子頁面幫忙做「把 currentSvg 轉成 PNG base64」===
+    async function generatePngBase64(svgContent, scale=2) {
+      // 1. 解析 <svg>，讀取 viewBox
+      const { updatedSvg, width, height } = prepareSvgForExport(svgContent);
+      const svgBase64 = btoa(unescape(encodeURIComponent(updatedSvg)));
+      const image64 = "data:image/svg+xml;base64," + svgBase64;
+
+      // 2. 在 Canvas 上繪製
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = width * scale;
+          canvas.height = height * scale;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // 回傳 PNG dataURL
+          resolve(canvas.toDataURL("image/png")); 
+        };
+        img.onerror = (err) => reject(err);
+        img.src = image64;
+      });
+    }
     // ---- 下載 SVG ----
     function downloadSvgFile(svgContent) {
       const blob = new Blob([svgContent], { type: "image/svg+xml" });
